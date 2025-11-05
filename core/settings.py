@@ -1,12 +1,14 @@
 from pathlib import Path
 from datetime import timedelta
 import os
+from decouple import config, Csv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'dev_key_change_me'
-DEBUG = True
-ALLOWED_HOSTS = ['*']
+# --- Configuración de seguridad ---
+SECRET_KEY = config('SECRET_KEY', default='dev_key_change_me')
+DEBUG = config('DEBUG', default=True, cast=bool)
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 # --- Aplicaciones instaladas ---
 INSTALLED_APPS = [
@@ -63,11 +65,11 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'recruitment_ai_db',
-        'USER': 'root',
-        'PASSWORD': 'juanalvarez04',  # Importante: cambiar por una contraseña segura en producción
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'NAME': config('DB_NAME', default='recruitment_ai_db'),
+        'USER': config('DB_USER', default='root'),
+        'PASSWORD': config('DB_PASSWORD', default=''),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='3306'),
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         }
@@ -98,13 +100,19 @@ REST_FRAMEWORK = {
 
 # --- Configuración JWT ---
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('JWT_ACCESS_TOKEN_LIFETIME', default=60, cast=int)),
+    'REFRESH_TOKEN_LIFETIME': timedelta(minutes=config('JWT_REFRESH_TOKEN_LIFETIME', default=10080, cast=int)),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 # --- CORS (para React frontend) ---
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',  # Puerto de React (Vite)
-    'http://localhost:5174',  # Puerto alternativo de Vite
-]
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:5173,http://localhost:5174',
+    cast=Csv()
+)
 CORS_ALLOW_CREDENTIALS = True

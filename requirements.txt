@@ -1,0 +1,16 @@
+# Django y Django REST Framework
+Django==5.2.7
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.0
+
+# Database
+mysqlclient==2.2.7
+
+# CORS
+django-cors-headers==4.9.0
+
+# Variables de entorno
+python-decouple==3.8
+
+# Para hacer requests HTTP (usado en tests)
+requests==2.32.4
