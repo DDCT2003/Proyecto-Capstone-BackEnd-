@@ -65,7 +65,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'recruitment_ai_db',
         'USER': 'root',
-        'PASSWORD': 'juanalvarez04',  # Importante: cambiar por una contraseña segura en producción
+        'PASSWORD': 'root',  # Importante: cambiar por una contraseña segura en producción
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
