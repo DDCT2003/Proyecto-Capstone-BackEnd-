@@ -85,3 +85,44 @@ class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "username", "email", "is_staff", "is_superuser", "first_name", "last_name")
+
+ 
+class UpdateMeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("email", "first_name", "last_name")
+        extra_kwargs = {
+            "email": {"required": False, "allow_blank": True},
+            "first_name": {"required": False, "allow_blank": True},
+            "last_name": {"required": False, "allow_blank": True},
+        }
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=6)
+    confirm_new_password = serializers.CharField(write_only=True, min_length=6)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError("Las contraseñas nuevas no coinciden.")
+        return attrs       
+    
+# ...existing code...
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """Serializer para actualizar el perfil del usuario autenticado."""
+    class Meta:
+        model = User
+        fields = ["username", "email", "first_name", "last_name"]
+        extra_kwargs = {
+            "email": {"required": False},
+            "username": {"required": False},
+            "first_name": {"required": False},
+            "last_name": {"required": False},
+        }
+
+    def validate_email(self, value):
+        user = self.context["request"].user
+        if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+            raise serializers.ValidationError("Este email ya está en uso.")
+        return value

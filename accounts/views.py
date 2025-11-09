@@ -1,6 +1,9 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
+from rest_framework.response import Response
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.models import User
-from .serializers import RegisterSerializer, MeSerializer
+from .serializers import RegisterSerializer, MeSerializer, UserUpdateSerializer, ChangePasswordSerializer
+
 
 class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
@@ -13,3 +16,41 @@ class MeView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+
+class UpdateMeView(generics.UpdateAPIView):
+    """
+    Actualiza el perfil del usuario autenticado.
+    URL: /accounts/me/update/  (ya definida en urls.py)
+    Método: PUT o PATCH
+    """
+    serializer_class = UserUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        # siempre operar sobre el usuario autenticado
+        return self.request.user
+
+class ChangePasswordView(generics.UpdateAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ["post"]
+
+    def get_object(self):
+        return self.request.user
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not user.check_password(serializer.validated_data["old_password"]):
+            return Response({"detail": "La contraseña actual no es correcta."}, status=status.HTTP_400_BAD_REQUEST)
+        user.setPassword(serializer.validated_data["new_password"]) if hasattr(user, "setPassword") else user.set_password(serializer.validated_data["new_password"])
+        user.save()
+        # Mantener la sesión activa tras el cambio
+        try:
+            update_session_auth_hash(request, user)
+        except Exception:
+            pass
+        return Response({"ok": True})
