@@ -251,16 +251,39 @@ class CandidateAnswerViewSet(viewsets.ModelViewSet):
         
         try:
             ai_service = OpenAIAssessmentService()
+            
+            # Obtener el nivel de dificultad del assessment
+            assessment = answer.question.assessment
+            difficulty = assessment.difficulty if assessment else 'MEDIUM'
+            
             evaluation = ai_service.evaluate_code_answer(
                 question_text=answer.question.question_text,
-                candidate_code=answer.answer_text,
+                candidate_code=answer.code_answer or answer.answer_text,
                 test_cases=answer.question.test_cases,
-                language=answer.question.programming_language
+                language=answer.question.programming_language,
+                difficulty=difficulty  # Pasar la dificultad
             )
+            
+            # Obtener el score
+            score_percentage = evaluation.get('score_percentage', 0)
+            
+            # Validación adicional: si todos los tests pasaron, asegurar puntaje mínimo
+            test_results = evaluation.get('test_results', [])
+            if test_results:
+                all_passed = all(t.get('passed', False) for t in test_results)
+                if all_passed:
+                    # Puntajes mínimos por dificultad cuando TODOS los tests pasan
+                    min_scores = {'EASY': 80, 'MEDIUM': 75, 'HARD': 70}
+                    min_score = min_scores.get(difficulty, 75)
+                    
+                    if score_percentage < min_score:
+                        score_percentage = min_score
+                        evaluation['score_percentage'] = min_score
+                        evaluation['feedback'] = f"✅ TODOS los tests pasaron correctamente. {evaluation.get('feedback', '')}"
             
             # Actualizar respuesta con evaluación
             answer.is_correct = evaluation.get('is_correct', False)
-            answer.points_earned = (evaluation.get('score_percentage', 0) / 100) * answer.question.points
+            answer.points_earned = (score_percentage / 100) * answer.question.points
             answer.feedback = evaluation.get('feedback', '')
             answer.test_results = evaluation.get('test_results', {})
             answer.save()
