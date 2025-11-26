@@ -1,8 +1,9 @@
-import os, json
+import json
 from openai import OpenAI
+from django.conf import settings
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
+MODEL = "gpt-4o-mini"
 
 SCHEMA = {
   "type": "object",
