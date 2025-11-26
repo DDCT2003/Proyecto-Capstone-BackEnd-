@@ -102,8 +102,9 @@ class CandidateAnswer(models.Model):
     candidate = models.ForeignKey(User, on_delete=models.CASCADE, related_name="answers")
     
     # Respuesta
-    answer_text = models.TextField(blank=True, help_text="Respuesta de texto o código")
+    answer_text = models.TextField(blank=True, help_text="Respuesta de texto")
     selected_option_index = models.IntegerField(null=True, blank=True, help_text="Índice de opción seleccionada (para multiple choice)")
+    code_answer = models.TextField(blank=True, help_text="Código escrito por el candidato (para preguntas de código)")
     
     # Evaluación
     is_correct = models.BooleanField(null=True, blank=True)

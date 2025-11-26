@@ -44,7 +44,7 @@ class CandidateAnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = CandidateAnswer
         fields = [
-            'id', 'question', 'answer_text', 'selected_option_index',
+            'id', 'question', 'answer_text', 'selected_option_index', 'code_answer',
             'is_correct', 'points_earned', 'feedback', 'answered_at',
             'time_spent_seconds', 'code_output', 'test_results'
         ]
