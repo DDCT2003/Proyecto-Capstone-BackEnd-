@@ -35,6 +35,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if app.parsed_text:
             try:
                 extracted = parse_cv_text(app.parsed_text)
+                # Validar que extracted sea un diccionario y no None
+                if not isinstance(extracted, dict):
+                    extracted = {"error": "La IA retornó un formato inválido"}
             except Exception as e:
                 extracted = {"error": str(e)}
 

@@ -67,7 +67,7 @@ def calculate_candidate_score(candidate_data, project_requirements):
         response_format={"type": "json_object"}
     )
     
-    return json.loads(result.choices[0].message.content) #
+    return json.loads(result.choices[0].message.content)
 
 def parse_cv_text(cv_text: str):
     messages = [
