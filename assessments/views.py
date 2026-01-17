@@ -602,32 +602,55 @@ class CandidateAnswerViewSet(viewsets.ModelViewSet):
                 expected_output = test_case.get('expected_output', '')
                 description = test_case.get('description', f'Test {idx}')
                 
+                print(f"\n🔍 DEBUG Test {idx}:")
+                print(f"   Input original: {repr(test_input)} (tipo: {type(test_input)})")
+                print(f"   Expected output: {repr(expected_output)}")
+                
                 # Parsear el input - puede venir como array ["value"] o valor directo
                 # Si viene como ["value"], extraer solo el valor
                 try:
                     import ast
                     parsed_input = ast.literal_eval(test_input)
+                    print(f"   Parsed con ast.literal_eval: {parsed_input} (tipo: {type(parsed_input)})")
                     # Si es una lista de un solo elemento, extraerlo
                     if isinstance(parsed_input, list) and len(parsed_input) == 1:
-                        test_input = repr(parsed_input[0])
+                        actual_input = parsed_input[0]
                     elif isinstance(parsed_input, list):
                         # Si es lista de múltiples elementos, mantenerlo como lista
-                        test_input = repr(parsed_input)
+                        actual_input = parsed_input
                     else:
-                        test_input = repr(parsed_input)
-                except:
+                        actual_input = parsed_input
+                except Exception as e:
                     # Si falla el parsing, usar el input tal cual
-                    pass
+                    print(f"   ⚠️ Error parseando: {e}")
+                    actual_input = test_input
+                
+                print(f"   Actual input: {actual_input} (tipo: {type(actual_input)})")
+                
+                print(f"   Actual input: {actual_input} (tipo: {type(actual_input)})")
                 
                 # Construir código con test case
                 if programming_language.lower() == 'python':
+                    test_input_formatted = repr(actual_input)
                     test_code = f"""{code}
 
 # Test case {idx}
-result = solution({test_input})
+result = solution({test_input_formatted})
 print(result)
 """
+                elif programming_language.lower() == 'javascript':
+                    # Para JavaScript, convertir a sintaxis JS válida
+                    test_input_formatted = json.dumps(actual_input)
+                    print(f"   Input formateado para JS: {test_input_formatted}")
+                    test_code = f"""{code}
+
+// Test case {idx}
+const result = solution({test_input_formatted});
+console.log(result);
+"""
+                    print(f"   Código a ejecutar:\n{test_code[:200]}...")
                 else:
+                    test_input_formatted = str(actual_input)
                     test_code = code  # Para otros lenguajes, ajustar según sea necesario
                 
                 try:
@@ -648,8 +671,16 @@ print(result)
                     actual_output = piston_result.get('run', {}).get('output', '').strip()
                     error = piston_result.get('run', {}).get('stderr', '')
                     
-                    # Comparar resultado
-                    passed = str(actual_output) == str(expected_output).strip('"')
+                    # Comparar resultado - normalizar valores null/None
+                    # Para JavaScript: null, undefined -> normalizar
+                    # Para Python: None -> normalizar
+                    def normalize_output(val):
+                        val_str = str(val).strip().strip('"')
+                        if val_str.lower() in ['null', 'none', 'undefined']:
+                            return 'null'
+                        return val_str
+                    
+                    passed = normalize_output(actual_output) == normalize_output(expected_output)
                     
                     if passed:
                         passed_tests += 1
