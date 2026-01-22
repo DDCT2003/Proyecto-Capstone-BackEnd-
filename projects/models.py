@@ -10,6 +10,7 @@ class Project(models.Model):
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     priority = models.IntegerField(default=3)  # 1=alta ... 5=baja
+    is_hidden = models.BooleanField(default=False)
 
 
 class Meeting(models.Model):

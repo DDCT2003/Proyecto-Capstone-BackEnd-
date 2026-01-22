@@ -30,12 +30,48 @@ class OpenAIAssessmentService:
             Lista de diccionarios con preguntas
         """
         difficulty_map = {
-            "EASY": "fácil, conceptos básicos",
-            "MEDIUM": "intermedio, aplicación práctica",
-            "HARD": "avanzado, casos complejos y optimización"
+            "EASY": {
+                "description": "nivel BÁSICO/JUNIOR",
+                "details": "Conceptos fundamentales, sintaxis básica, definiciones estándar",
+                "min_time_per_question": 2,  # minutos
+                "max_time_per_question": 3
+            },
+            "MEDIUM": {
+                "description": "nivel INTERMEDIO/MID-LEVEL",
+                "details": "Aplicación práctica, análisis de código, resolución de problemas reales, comparación de enfoques, debugging",
+                "min_time_per_question": 3,
+                "max_time_per_question": 5
+            },
+            "HARD": {
+                "description": "nivel AVANZADO/SENIOR",
+                "details": "Optimización, arquitectura, patrones de diseño, casos edge complejos, análisis de complejidad, trade-offs",
+                "min_time_per_question": 5,
+                "max_time_per_question": 7
+            }
         }
         
-        prompt = f"""Genera {num_questions} preguntas de opción múltiple sobre {topic} de nivel {difficulty_map.get(difficulty, 'intermedio')}.
+        diff_info = difficulty_map.get(difficulty, difficulty_map["MEDIUM"])
+        suggested_time = (diff_info["min_time_per_question"] + diff_info["max_time_per_question"]) / 2 * num_questions
+        
+        prompt = f"""Genera EXACTAMENTE {num_questions} preguntas de opción múltiple sobre {topic} de {diff_info['description']}.
+
+🎯 OBJETIVO: Crear {num_questions} preguntas de ALTA CALIDAD que evalúen comprensión real del tema.
+
+⏱️ TIEMPO SUGERIDO PARA ESTA EVALUACIÓN: {int(suggested_time)} minutos
+   (Aproximadamente {diff_info['min_time_per_question']}-{diff_info['max_time_per_question']} minutos por pregunta para {diff_info['description']})
+
+🔴 CRITERIOS DE CALIDAD PARA {diff_info['description'].upper()}:
+
+1. **Relevancia técnica**: {diff_info['details']}
+2. **Profundidad adecuada**: Las preguntas deben requerir {diff_info['min_time_per_question']}-{diff_info['max_time_per_question']} minutos de análisis
+3. **Opciones desafiantes**: Los distractores deben ser plausibles pero incorrectos
+4. **Variedad**: Incluye diferentes aspectos de {topic}
+
+📋 TIPOS DE PREGUNTAS A INCLUIR (distribuir entre las {num_questions}):
+- 30-40%: Conceptos teóricos aplicados
+- 30-40%: Análisis de código/escenarios
+- 20-30%: Mejores prácticas y comparaciones
+- 10-20%: Casos edge y debugging
 
 IMPORTANTE: Responde ÚNICAMENTE con un JSON válido, sin texto adicional antes o después.
 
@@ -43,38 +79,92 @@ Formato JSON requerido:
 {{
   "questions": [
     {{
-      "question_text": "¿Pregunta aquí?",
+      "question_text": "Pregunta detallada que requiera análisis (mínimo 50 caracteres)",
       "question_type": "MULTIPLE_CHOICE",
-      "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
+      "options": ["Opción A detallada", "Opción B detallada", "Opción C detallada", "Opción D detallada"],
       "correct_answer": "0",
-      "explanation": "Explicación detallada de por qué la respuesta es correcta",
+      "explanation": "Explicación completa de por qué es correcta Y por qué las otras son incorrectas (mínimo 100 caracteres)",
       "points": 10
     }}
-  ]
+  ],
+  "suggested_time_minutes": {int(suggested_time)},
+  "difficulty_level": "{difficulty}",
+  "topic": "{topic}"
 }}
 
-Reglas:
-- Cada pregunta debe tener exactamente 4 opciones
+🚫 EVITA (ERRORES COMUNES):
+- ❌ Preguntas que se responden con "sí/no" obvios
+- ❌ Definiciones memorizables sin contexto
+- ❌ Opciones claramente incorrectas o ridículas
+- ❌ Preguntas demasiado simples para {diff_info['description']}
+- ❌ Explicaciones vagas o incompletas
+
+✅ BUSCA (BUENAS PRÁCTICAS):
+- ✅ Preguntas que requieran razonamiento
+- ✅ Escenarios realistas del mundo real
+- ✅ Opciones que distingan conocimiento superficial vs profundo
+- ✅ Explicaciones que enseñen conceptos adicionales
+- ✅ Preguntas que evalúen comprensión, no memorización
+
+REGLAS OBLIGATORIAS:
+- Cada pregunta debe tener EXACTAMENTE 4 opciones
 - correct_answer debe ser el índice (0-3) de la opción correcta
-- Las preguntas deben ser técnicas y relevantes para {topic}
-- Incluye una explicación clara de la respuesta correcta
-- Varía la dificultad dentro del nivel {difficulty_map.get(difficulty)}
+- question_text debe tener MÍNIMO 50 caracteres
+- explanation debe tener MÍNIMO 100 caracteres y explicar por qué las otras opciones son incorrectas
+- Todas las opciones deben ser gramaticalmente completas y profesionales
+- Varía la posición de la respuesta correcta (no siempre en índice 0)
 - Idioma: {'español' if language == 'es' else 'inglés'}
+
+📊 DISTRIBUCIÓN DE COMPLEJIDAD DENTRO DE {diff_info['description']}:
+- 20% más fáciles (entrada al nivel)
+- 60% complejidad estándar del nivel
+- 20% más desafiantes (techo del nivel)
+
+EJEMPLO DE PREGUNTA DE CALIDAD PARA {diff_info['description']}:
+{{
+  "question_text": "En una aplicación React, tienes un componente que renderiza una lista de 10,000 elementos y notas problemas de rendimiento. ¿Cuál estrategia de optimización sería MÁS efectiva?",
+  "question_type": "MULTIPLE_CHOICE",
+  "options": [
+    "Usar React.memo() en el componente de lista completo",
+    "Implementar virtualización con react-window para renderizar solo elementos visibles",
+    "Agregar key props a cada elemento de la lista",
+    "Usar useCallback en todos los event handlers"
+  ],
+  "correct_answer": "1",
+  "explanation": "La virtualización (opción B) es la más efectiva porque renderiza solo los elementos visibles en el viewport, reduciendo drásticamente el DOM. React.memo ayuda pero no resuelve el problema de 10,000 elementos montados. Las keys son necesarias pero no mejoran el rendimiento significativamente. useCallback optimiza re-renders pero no reduce la cantidad de elementos.",
+  "points": 10
+}}
+
+Ahora genera EXACTAMENTE {num_questions} preguntas de {diff_info['description']} sobre {topic}:
 """
         
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "Eres un experto en crear evaluaciones técnicas de programación. Respondes SOLO con JSON válido."},
+                    {
+                        "role": "system", 
+                        "content": f"Eres un experto senior en crear evaluaciones técnicas de programación de {diff_info['description']}. DEBES generar EXACTAMENTE {num_questions} preguntas. Respondes SOLO con JSON válido. Tus preguntas son desafiantes, relevantes y bien fundamentadas."
+                    },
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,
+                temperature=0.8,  # Aumentado para más creatividad y variedad
                 response_format={"type": "json_object"}
             )
             
             result = json.loads(response.choices[0].message.content)
-            return result.get("questions", [])
+            questions = result.get("questions", [])
+            
+            # Validación: asegurar que se generaron suficientes preguntas
+            if len(questions) < num_questions:
+                print(f"⚠️ ADVERTENCIA: Se generaron solo {len(questions)} de {num_questions} preguntas solicitadas")
+            
+            # Añadir metadata de tiempo sugerido a cada pregunta
+            for question in questions:
+                if "suggested_time_minutes" not in question:
+                    question["suggested_time_minutes"] = (diff_info["min_time_per_question"] + diff_info["max_time_per_question"]) / 2
+            
+            return questions
             
         except Exception as e:
             raise Exception(f"Error al generar preguntas con OpenAI: {str(e)}")
@@ -540,8 +630,16 @@ CRITERIOS DE DECISIÓN:
 - Si match_score < 60% → HARD (evaluar más a fondo)
 - Si required_skills incluye lenguajes de programación → CODING
 - Si required_skills son principalmente soft skills o teóricos → QUIZ
-- Ajustar tiempo según dificultad: EASY=30-45min, MEDIUM=60min, HARD=90-120min
+- Ajustar tiempo según dificultad y cantidad de preguntas:
+  * QUIZ EASY: 2-3 min/pregunta → 8-12 preguntas = 30-45 min
+  * QUIZ MEDIUM: 3-5 min/pregunta → 10-15 preguntas = 45-75 min
+  * QUIZ HARD: 5-7 min/pregunta → 12-20 preguntas = 60-120 min
+  * CODING EASY: 1-2 desafíos = 30-45 min
+  * CODING MEDIUM: 2-3 desafíos = 60-90 min
+  * CODING HARD: 3-5 desafíos = 90-120 min
 - Score mínimo: EASY=65%, MEDIUM=70%, HARD=75%
+- Para QUIZ: MÍNIMO 8 preguntas, IDEAL 10-15 preguntas
+- Para CODING: 1-5 desafíos según dificultad
 
 RESPONDE EN JSON con esta estructura EXACTA:
 {{
@@ -607,15 +705,21 @@ RESPONDE EN JSON con esta estructura EXACTA:
             if application.match_score >= 80:
                 difficulty = "EASY"
                 passing_score = 65
-                time_minutes = 30
+                time_minutes = 40
+                num_questions_quiz = 10
+                num_questions_coding = 2
             elif application.match_score >= 60:
                 difficulty = "MEDIUM"
                 passing_score = 70
                 time_minutes = 60
+                num_questions_quiz = 12
+                num_questions_coding = 3
             else:
                 difficulty = "HARD"
                 passing_score = 75
                 time_minutes = 90
+                num_questions_quiz = 15
+                num_questions_coding = 4
             
             # Determinar tipo basado en skills requeridos
             required_skills = project.required_skills if hasattr(project, 'required_skills') else []
@@ -627,7 +731,7 @@ RESPONDE EN JSON con esta estructura EXACTA:
             )
             
             assessment_type = "CODING" if has_coding else "QUIZ"
-            num_questions = 5 if assessment_type == "CODING" else 10
+            num_questions = num_questions_coding if assessment_type == "CODING" else num_questions_quiz
             
             # Detectar lenguaje principal
             programming_language = "JavaScript"

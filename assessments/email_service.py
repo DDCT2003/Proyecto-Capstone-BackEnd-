@@ -59,9 +59,6 @@ def send_assessment_invitation(assessment_id, user_ids, custom_message=None):
                     <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin: 8px 0;"><strong>📋 Evaluación:</strong> {assessment.title}</p>
                         <p style="margin: 8px 0;"><strong>🎯 Tipo:</strong> {assessment.get_assessment_type_display()}</p>
-                        <p style="margin: 8px 0;"><strong>⏱️ Tiempo límite:</strong> {assessment.time_limit_minutes} minutos</p>
-                        <p style="margin: 8px 0;"><strong>📊 Dificultad:</strong> {assessment.get_difficulty_display()}</p>
-                        <p style="margin: 8px 0;"><strong>✅ Puntaje mínimo:</strong> {assessment.passing_score}%</p>
                     </div>
                     {custom_msg_section}
                     <p>
