@@ -24,8 +24,39 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         # 1. KPIs de Evaluación (Promedio de todos los tipos: QUIZ y CODING)
         assessments_qs = Assessment.objects.filter(filters, status__in=['EVALUATED', 'COMPLETED'])
         avg_technical = assessments_qs.aggregate(Avg('score'))['score__avg'] or 0
+        # Obtenemos los conteos para el gráfico de pastel
+        status_counts = Application.objects.filter(filters).values('status').annotate(total=Count('id'))
+    
+        # Mapeo de nombres técnicos a etiquetas amigables para el Dashboard
+        friendly_status_map = {
+            'APPROVED': 'Aprobados',
+            'REVIEW': 'En Revisión',
+            'SUBMITTED': 'Esperando Revisión',
+            'REJECTED': 'Rechazados'
+        }
+        pie_data = [
+        {
+            "name": friendly_status_map.get(s['status'], s['status']),
+            "value": s['total']
+        } for s in status_counts
+        ]
 
-        # 2. Ranking con Validación de Múltiples Pruebas
+        # Calculamos el promedio de aciertos por tipo de prueba
+        type_performance = (
+            Assessment.objects.filter(filters, status__in=['EVALUATED', 'COMPLETED'])
+            .values('assessment_type')
+            .annotate(avg_score=Avg('score'))
+            .order_by('-avg_score')
+        )
+
+        # Mapeo de etiquetas para el frontend
+        type_data = [
+            {
+                "type": "Prueba de Código" if item['assessment_type'] == 'CODING' else "Cuestionario (Quiz)",
+                "percentage": round(item['avg_score'], 1)
+            } for item in type_performance
+        ]
+
         top_candidates_data = []
         apps = Application.objects.filter(filters).order_by('-match_score')[:5]
 
@@ -50,14 +81,6 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 top_app = Application.objects.filter(project_id=project_id).order_by('-match_score').first()
                 cand_score = top_app.match_score if top_app else 0
                 print(project.required_skills)
-            # 3. Construimos el radar dinámicamente
-                comparison_radar = []
-                for skill in skills_dict:
-                    comparison_radar.append({
-                        "skill": skill,
-                        "required": 100,
-                        "detected": cand_score # Usamos el Match Score global como indicador del candidato
-                    })
             else:
                 comparison_radar = []
         return Response({
@@ -68,13 +91,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 "avg_match": round(Application.objects.filter(filters).aggregate(Avg('match_score'))['match_score__avg'] or 0, 1),
                 "avg_technical": round(avg_technical, 1)
             },
-            "skills_radar": [ # Datos dinámicos 
-                {"subject": "Python", "A": 90}, {"subject": "React", "A": 70},
-                {"subject": "SQL", "A": 85}, {"subject": "Testing", "A": 60}
-            ],
             "status_distribution": list(Application.objects.filter(filters).values('status').annotate(total=Count('id'))),
             "top_candidates": top_candidates_data,
-           "comparison_radar": comparison_radar
+            "pie_data": pie_data, # Nuevos datos para el gráfico de pastel
+            "type_performance": type_data, # Nueva data para las barras
         })
     # Si no eres admin (is_staff), solo ves tus propias aplicaciones
     def get_queryset(self):
