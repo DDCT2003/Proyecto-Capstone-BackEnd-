@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from .models import Assessment
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ def send_assessment_invitation(assessment_id, user_ids, custom_message=None):
                 emails_sent += 1
                 recipients.append(user.email)
                 logger.info(f"✅ Email enviado a {user.email} para assessment {assessment_id}")
+                time.sleep(0.6)  # Delay para respetar rate limit de Resend (2 req/sec)
                 
             except Exception as e:
                 failed += 1
@@ -245,6 +247,7 @@ def notify_assessment_completed(assessment_id):
                 emails_sent += 1
                 recipients.append(admin.email)
                 logger.info(f"✅ Notificación enviada a admin {admin.email}")
+                time.sleep(0.6)  # Delay para respetar rate limit de Resend (2 req/sec)
                 
             except Exception as e:
                 failed += 1
