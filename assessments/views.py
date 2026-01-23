@@ -187,6 +187,14 @@ class AssessmentViewSet(viewsets.ModelViewSet):
             
         assessment.save()
         
+        # Enviar notificaciones por email
+        from .email_service import notify_assessment_completed
+        try:
+            notify_assessment_completed(assessment.id)
+            logger.info(f"✅ Notificaciones enviadas para assessment {assessment.id}")
+        except Exception as e:
+            logger.error(f"❌ Error enviando notificaciones para assessment {assessment.id}: {str(e)}")
+        
         serializer = self.get_serializer(assessment)
         return Response(serializer.data)
     
