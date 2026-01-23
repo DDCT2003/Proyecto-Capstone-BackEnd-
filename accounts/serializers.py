@@ -202,3 +202,51 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         # Llamar al método padre con el username correcto
         return super().validate(attrs)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer para solicitar reseteo de contraseña"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Validar formato de email"""
+        if not value:
+            raise serializers.ValidationError("El email es requerido")
+        return value.lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer para confirmar reseteo de contraseña"""
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8, write_only=True)
+    
+    def validate_new_password(self, value):
+        """
+        Validar que la contraseña cumpla con los estándares de seguridad:
+        - Mínimo 8 caracteres
+        - Al menos una letra mayúscula
+        - Al menos una letra minúscula
+        - Al menos un número
+        """
+        if len(value) < 8:
+            raise serializers.ValidationError(
+                "La contraseña debe tener al menos 8 caracteres."
+            )
+        
+        if not re.search(r'[A-Z]', value):
+            raise serializers.ValidationError(
+                "La contraseña debe contener al menos una letra mayúscula."
+            )
+        
+        if not re.search(r'[a-z]', value):
+            raise serializers.ValidationError(
+                "La contraseña debe contener al menos una letra minúscula."
+            )
+        
+        if not re.search(r'[0-9]', value):
+            raise serializers.ValidationError(
+                "La contraseña debe contener al menos un número."
+            )
+        
+        return value
