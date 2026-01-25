@@ -1,3 +1,5 @@
+from warnings import filters
+from httpx import request
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action,api_view
 from rest_framework.response import Response
@@ -19,7 +21,61 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         project_id = request.query_params.get('project_id')
-        filters = Q(project_id=project_id) if project_id else Q()
+        status_filter = request.query_params.get('status') # Recibimos el filtro del gráfico circular
+        filters = Q()
+        # Empezamos con una consulta vacía (trae todo por defecto)
+        ranking_data = []
+
+        # Si hay proyecto, filtramos por proyecto
+        if project_id and project_id != 'null' and project_id != '':
+            filters &= Q(project_id=project_id)
+
+        # Si hay estado (del gráfico circular), filtramos por estado
+        if status_filter and status_filter != 'null' and status_filter != '':
+            filters &= Q(status=status_filter)
+
+        if project_id: filters &= Q(project_id=project_id)
+        if status_filter: filters &= Q(status=status_filter)
+        quiz_weight_raw = float(request.query_params.get('quiz_weight', 50))
+        quiz_w = quiz_weight_raw / 100
+        coding_w = 1 - quiz_w
+        applications = Application.objects.filter(filters).select_related('candidate', 'project')
+  
+
+        for app in applications:
+            # 3. Obtenemos los promedios de ese candidato por tipo en MySQL
+            # Solo tomamos evaluaciones finalizadas (EVALUATED o COMPLETED)
+            base_scores = Assessment.objects.filter(
+                candidate_id=app.candidate_id,
+                project_id=app.project_id,
+                status__in=['EVALUATED', 'COMPLETED']
+            ).values('assessment_type').annotate(average=Avg('score'))
+
+            # Inicializamos variables para el cálculo
+            avg_quiz = 0
+            avg_coding = 0
+            
+            for score_data in base_scores:
+                if score_data['assessment_type'] == 'QUIZ':
+                    avg_quiz = score_data['average']
+                elif score_data['assessment_type'] == 'CODING':
+                    avg_coding = score_data['average']
+
+
+            weighted_technical_avg = (avg_quiz * quiz_w) + (avg_coding * coding_w)
+
+            ranking_data.append({
+                "candidate_name": app.candidate.email, # Usamos el email como en tu dashboard
+                "project_title": app.project.title,
+                "ia_match": f"{app.match_score}%", # El score de 60/40 de tu US03
+                "promedio_tecnico": round(weighted_technical_avg, 1), # Este es el que cambia con el slider
+                "num_pruebas": Assessment.objects.filter(candidate_id=app.candidate_id, project_id=app.project_id).count(),
+                "status": app.status
+            })
+
+        # 5. Reordenamos el ranking basado en el nuevo promedio técnico calculado
+        # Esto permite que el ranking cambie en tiempo real en el frontend
+        ranking_data = sorted(ranking_data, key=lambda x: (x['promedio_tecnico'], x['ia_match']), reverse=True)
 
         # 1. KPIs de Evaluación (Promedio de todos los tipos: QUIZ y CODING)
         assessments_qs = Assessment.objects.filter(filters, status__in=['EVALUATED', 'COMPLETED'])
@@ -75,14 +131,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 "tech_score_avg": round(cand_assessments.aggregate(Avg('score'))['score__avg'] or 0, 1),
                 "tests_count": cand_assessments.count() # Indica cuántas pruebas hizo
             })
-            if project_id:
-                project = Project.objects.get(id=project_id)
-                skills_dict = project.required_skills if isinstance(project.required_skills, list) else {}
-                top_app = Application.objects.filter(project_id=project_id).order_by('-match_score').first()
-                cand_score = top_app.match_score if top_app else 0
-                print(project.required_skills)
-            else:
-                comparison_radar = []
+          
         return Response({
             "projects_list": Project.objects.values('id', 'title'),
             "kpis": {
@@ -95,6 +144,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             "top_candidates": top_candidates_data,
             "pie_data": pie_data, # Nuevos datos para el gráfico de pastel
             "type_performance": type_data, # Nueva data para las barras
+            "ranking_candidates": ranking_data,
+            "current_weights": {
+            "quiz": quiz_weight_raw,
+            "coding": 100 - quiz_weight_raw
+        }
         })
     # Si no eres admin (is_staff), solo ves tus propias aplicaciones
     def get_queryset(self):
