@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 import re
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -7,10 +8,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True)
     first_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
     last_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    is_staff = serializers.BooleanField(required=False, default=False)
+    is_superuser = serializers.BooleanField(required=False, default=False)
 
     class Meta:
         model = User
-        fields = ("username", "email", "password", "first_name", "last_name")
+        fields = ("username", "email", "password", "first_name", "last_name", "is_staff", "is_superuser")
 
     def validate_email(self, value):
         """
@@ -73,13 +76,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        return User.objects.create_user(
+        # Extraer los campos de permisos
+        is_staff = validated_data.pop('is_staff', False)
+        is_superuser = validated_data.pop('is_superuser', False)
+        
+        # Extraer la contraseña
+        password = validated_data.pop('password')
+        
+        # Crear el usuario sin contraseña primero
+        user = User.objects.create(
             username=validated_data["username"],
             email=validated_data["email"],
-            password=validated_data["password"],
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
+            is_staff=is_staff,
+            is_superuser=is_superuser,
+            is_active=True  # Importante: activar el usuario para que pueda iniciar sesión
         )
+        
+        # Establecer la contraseña de forma segura
+        user.set_password(password)
+        user.save()
+        
+        return user
 
 class MeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -153,3 +172,81 @@ class AdminUserSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
+
+
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Serializer personalizado de JWT que permite autenticación con email.
+    El frontend envía { "email": "...", "password": "..." }
+    """
+    username_field = 'email'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Reemplazar el campo 'username' por 'email'
+        self.fields['email'] = serializers.EmailField(required=True)
+        self.fields.pop('username', None)
+    
+    def validate(self, attrs):
+        # Obtener email y password
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        # Buscar usuario por email
+        try:
+            user = User.objects.get(email=email)
+            # Usar el username del usuario encontrado para la autenticación JWT
+            attrs['username'] = user.username
+        except User.DoesNotExist:
+            raise serializers.ValidationError('No se encontró un usuario con este correo electrónico.')
+        
+        # Llamar al método padre con el username correcto
+        return super().validate(attrs)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer para solicitar reseteo de contraseña"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Validar formato de email"""
+        if not value:
+            raise serializers.ValidationError("El email es requerido")
+        return value.lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer para confirmar reseteo de contraseña"""
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8, write_only=True)
+    
+    def validate_new_password(self, value):
+        """
+        Validar que la contraseña cumpla con los estándares de seguridad:
+        - Mínimo 8 caracteres
+        - Al menos una letra mayúscula
+        - Al menos una letra minúscula
+        - Al menos un número
+        """
+        if len(value) < 8:
+            raise serializers.ValidationError(
+                "La contraseña debe tener al menos 8 caracteres."
+            )
+        
+        if not re.search(r'[A-Z]', value):
+            raise serializers.ValidationError(
+                "La contraseña debe contener al menos una letra mayúscula."
+            )
+        
+        if not re.search(r'[a-z]', value):
+            raise serializers.ValidationError(
+                "La contraseña debe contener al menos una letra minúscula."
+            )
+        
+        if not re.search(r'[0-9]', value):
+            raise serializers.ValidationError(
+                "La contraseña debe contener al menos un número."
+            )
+        
+        return value

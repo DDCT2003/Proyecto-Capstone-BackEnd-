@@ -208,6 +208,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         app.match_score = final_score*10
         app.save()
+        
+        # Enviar notificaciones por email a admins
+        from .email_service import notify_new_application
+        try:
+            notify_new_application(app.id)
+            print(f"✅ Notificaciones enviadas a admins para application {app.id}")
+        except Exception as e:
+            print(f"❌ Error enviando notificaciones para application {app.id}: {str(e)}")
 
     # Endpoint personalizado para actualizar el estado (solo admin)
     @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAdminUser])

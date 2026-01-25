@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from .models import Assessment
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +60,6 @@ def send_assessment_invitation(assessment_id, user_ids, custom_message=None):
                     <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin: 8px 0;"><strong>📋 Evaluación:</strong> {assessment.title}</p>
                         <p style="margin: 8px 0;"><strong>🎯 Tipo:</strong> {assessment.get_assessment_type_display()}</p>
-                        <p style="margin: 8px 0;"><strong>⏱️ Tiempo límite:</strong> {assessment.time_limit_minutes} minutos</p>
-                        <p style="margin: 8px 0;"><strong>📊 Dificultad:</strong> {assessment.get_difficulty_display()}</p>
-                        <p style="margin: 8px 0;"><strong>✅ Puntaje mínimo:</strong> {assessment.passing_score}%</p>
                     </div>
                     {custom_msg_section}
                     <p>
@@ -92,6 +90,7 @@ def send_assessment_invitation(assessment_id, user_ids, custom_message=None):
                 emails_sent += 1
                 recipients.append(user.email)
                 logger.info(f"✅ Email enviado a {user.email} para assessment {assessment_id}")
+                time.sleep(0.6)  # Delay para respetar rate limit de Resend (2 req/sec)
                 
             except Exception as e:
                 failed += 1
@@ -248,6 +247,7 @@ def notify_assessment_completed(assessment_id):
                 emails_sent += 1
                 recipients.append(admin.email)
                 logger.info(f"✅ Notificación enviada a admin {admin.email}")
+                time.sleep(0.6)  # Delay para respetar rate limit de Resend (2 req/sec)
                 
             except Exception as e:
                 failed += 1

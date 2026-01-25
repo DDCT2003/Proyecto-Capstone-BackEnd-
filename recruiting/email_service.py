@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from .models import Application
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ def notify_new_application(application_id):
                 emails_sent += 1
                 recipients.append(admin.email)
                 logger.info(f"✅ Notificación enviada a admin {admin.email} para application {application_id}")
+                time.sleep(0.6)  # Delay para respetar rate limit de Resend (2 req/sec)
                 
             except Exception as e:
                 failed += 1

@@ -32,6 +32,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # 🔸 Habilita comunicación React ↔ Django
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # 🔸 Sirve archivos estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -59,6 +60,12 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+
+# --- Authentication Backends ---
+AUTHENTICATION_BACKENDS = [
+    'accounts.authentication.EmailBackend',  # Backend personalizado para login con email
+    'django.contrib.auth.backends.ModelBackend',  # Backend por defecto (username)
+]
 
 # --- Base de datos ---
 DATABASES = {
@@ -119,9 +126,19 @@ CORS_ALLOWED_ORIGINS = config(
 )
 CORS_ALLOW_CREDENTIALS = True
 
+# --- CSRF (para Railway y otros dominios en producción) ---
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='https://*.railway.app',
+    cast=Csv()
+)
+
 # --- Static files (CSS, JavaScript, Images) ---
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise - Compresión y caché de archivos estáticos
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # --- Media files (User uploads) ---
 MEDIA_URL = '/media/'
