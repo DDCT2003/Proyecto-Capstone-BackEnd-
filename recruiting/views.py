@@ -48,7 +48,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             base_scores = Assessment.objects.filter(
                 candidate_id=app.candidate_id,
                 project_id=app.project_id,
-                status__in=['EVALUATED', 'COMPLETED']
+                status__in=['EVALUATED']
             ).values('assessment_type').annotate(average=Avg('score'))
 
             # Inicializamos variables para el cálculo
@@ -67,9 +67,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             ranking_data.append({
                 "candidate_name": app.candidate.email, # Usamos el email como en tu dashboard
                 "project_title": app.project.title,
+                "num_pruebas_pendiente": Assessment.objects.filter(candidate_id=app.candidate_id, project_id=app.project_id, status='PENDING').count(),
                 "ia_match": f"{app.match_score}%", # El score de 60/40 de tu US03
                 "promedio_tecnico": round(weighted_technical_avg, 1), # Este es el que cambia con el slider
-                "num_pruebas": Assessment.objects.filter(candidate_id=app.candidate_id, project_id=app.project_id).count(),
+                "num_pruebas": Assessment.objects.filter(candidate_id=app.candidate_id, project_id=app.project_id, status='EVALUATED').count(),
                 "status": app.status
             })
 
@@ -78,7 +79,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         ranking_data = sorted(ranking_data, key=lambda x: (x['promedio_tecnico'], x['ia_match']), reverse=True)
 
         # 1. KPIs de Evaluación (Promedio de todos los tipos: QUIZ y CODING)
-        assessments_qs = Assessment.objects.filter(filters, status__in=['EVALUATED', 'COMPLETED'])
+        assessments_qs = Assessment.objects.filter(filters, status__in=['EVALUATED'])
         avg_technical = assessments_qs.aggregate(Avg('score'))['score__avg'] or 0
         # Obtenemos los conteos para el gráfico de pastel
         status_counts = Application.objects.filter(filters).values('status').annotate(total=Count('id'))
